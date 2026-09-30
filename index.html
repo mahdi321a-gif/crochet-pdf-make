@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crochet PDF Maker</title>
+<style>
+  :root { --main:#FF6B6B; --bg:#fff7f3; --card:#fff; --ink:#222; --mute:#777; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#1d1818; --card:#2a2323; --ink:#f3ecea; --mute:#a99; } }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, sans-serif; background:var(--bg); color:var(--ink); padding:24px 16px; }
+  main { max-width:640px; margin:0 auto; background:var(--card); border-radius:20px; padding:24px; border:6px solid var(--main); }
+  h1 { margin:0 0 4px; font-size:1.5rem; } p.sub { margin:0 0 20px; color:var(--mute); }
+  label { display:block; font-weight:600; margin:16px 0 6px; font-size:.9rem; }
+  input[type=url], input[type=text], textarea { width:100%; padding:10px; border-radius:10px; border:1px solid #bbb; font:inherit; background:transparent; color:inherit; }
+  textarea { min-height:110px; } select { width:100%; padding:10px; border-radius:10px; border:1px solid #bbb; font:inherit; background:transparent; color:inherit; } .row { display:flex; gap:10px; align-items:center; }
+  button { margin-top:20px; width:100%; padding:12px; border:0; border-radius:12px; background:var(--main); color:#fff; font:600 1rem system-ui; cursor:pointer; }
+  button:disabled { opacity:.6; } #msg { margin-top:14px; } .err { color:#c0392b; }
+  .prompt { border:1px dashed #aaa; border-radius:10px; padding:10px; margin:8px 0; font-size:.85rem; }
+  .prompt b { display:block; margin-bottom:4px; } .prompt button { margin:6px 0 0; width:auto; padding:5px 12px; font-size:.8rem; }
+  a.dl { display:block; text-align:center; margin-top:14px; padding:12px; border-radius:12px; background:var(--main); color:#fff; text-decoration:none; font-weight:600; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Crochet PDF Maker</h1>
+  <p class="sub">3ti l-pattern, w kayt-tl3 lik PDF b alwan l-khit + prompts dyal les images.</p>
+
+  <label for="url">URL dyal l-pattern</label>
+  <input type="url" id="url" placeholder="https://...">
+
+  <label for="file">Wla upload l-page li sjjlti (.html / .txt)</label>
+  <input type="file" id="file" accept=".html,.htm,.txt">
+
+  <label for="paste">Wla paste l-text (l-3onwan f l-awal satr, mn b3d Materials, Abbreviations...)</label>
+  <textarea id="paste"></textarea>
+
+  <label for="type">Noo3 d l-crochet (l-prompts kaytbdlo 7sabo)</label>
+  <select id="type"><option value="">Auto (kaykchf-ha l-tool)</option>
+    <option value="bag">Bag / purse</option><option value="amigurumi">Amigurumi / toy</option>
+    <option value="blanket">Blanket / throw</option><option value="wearable">Garment / wearable</option>
+    <option value="accessory">Hat / scarf / accessory</option><option value="decor">Home decor</option>
+    <option value="small">Small item / motif</option><option value="generic">General</option></select>
+
+  <label for="color">Lon asasi (ikhtiyari)</label>
+  <div class="row"><input type="color" id="color" value="#ff6b6b"><input type="checkbox" id="usecolor"> <span>st3ml had l-lon</span></div>
+
+  <button id="go">Sawb l-PDF</button>
+  <div id="msg"></div>
+  <div id="out"></div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+$("go").onclick = async () => {
+  const msg = $("msg"), out = $("out"); out.innerHTML = ""; msg.className = ""; msg.textContent = "Kan-khddm...";
+  $("go").disabled = true;
+  try {
+    let content = $("paste").value;
+    const f = $("file").files[0];
+    if (f) content = await f.text();
+    const body = { url: $("url").value.trim(), content };
+    if ($("type").value) body.type = $("type").value;
+    if ($("usecolor").checked) body.color = $("color").value;
+    const r = await fetch("/.netlify/functions/generate", { method: "POST", body: JSON.stringify(body) });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.message || "Error");
+    const bin = Uint8Array.from(atob(j.pdf), (c) => c.charCodeAt(0));
+    const url = URL.createObjectURL(new Blob([bin], { type: "application/pdf" }));
+    document.documentElement.style.setProperty("--main", j.color);
+    msg.textContent = `Jahz: ${j.title} | noo3: ${j.typeLabel} | lon: ${j.color}`;
+    const name = j.title.replace(/\W+/g, "_") + "_Pattern.pdf";
+    out.innerHTML = `<a class="dl" href="${url}" download="${name}">Tl9 l-PDF</a><h3>Prompts dyal les images</h3>`;
+    for (const p of j.prompts) {
+      const d = document.createElement("div"); d.className = "prompt";
+      const b = document.createElement("b"); b.textContent = `IMAGE ${p.n} - ${p.desc}`;
+      const t = document.createElement("div"); t.textContent = p.prompt;
+      const c = document.createElement("button"); c.textContent = "Copy";
+      c.onclick = () => navigator.clipboard.writeText(p.prompt);
+      d.append(b, t, c); out.append(d);
+    }
+  } catch (e) { msg.className = "err"; msg.textContent = e.message; }
+  $("go").disabled = false;
+};
+</script>
+</body>
+</html>
